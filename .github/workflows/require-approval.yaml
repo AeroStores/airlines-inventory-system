@@ -1,0 +1,32 @@
+appname: require-approval
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  check-approval:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for an approved review by someone other than the author
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const prNumber = context.issue.number;
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber 
+            });
+            const author = pr.user.login;
+            const { data: reviews } = await github.rest.pulls.listReviews({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber
+            });
+            const approvedByOther = reviews.some(r => r.state === 'APPROVED' && r.user && r.user.login !== author);
+            if (!approvedByOther) {
+              throw new Error('This pull request has no approved reviews from anyone other than the author. Add at least one approval to proceed.');
+            }
